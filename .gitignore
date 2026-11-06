@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/ui/_profile/
+*.db
+.env
+review/
+.review_venv/
+.tmp_data/
+

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fix-It Assistant — what's wrong, and can I fix it myself?</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧰</text></svg>">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="#" id="brandLink"><span class="brand-icon">🧰</span><span>Fix-It Assistant</span></a>
+  <div class="topbar-right">
+    <button class="pill" id="enginePill" title="Which AI is being used"><span class="dot" id="engineDot"></span><span id="engineText">Checking…</span></button>
+    <button class="icon-btn" id="browseBtn" title="See every problem in the guide">📖 <span class="hide-sm">Browse</span></button>
+    <button class="icon-btn" id="notebookBtn" title="Repairs you've checked">📓 <span class="hide-sm">My repairs</span></button>
+    <button class="icon-btn" id="helpBtn" title="How to use this">❔ <span class="hide-sm">Help</span></button>
+    <button class="icon-btn" id="settingsBtn" title="Settings">⚙️ <span class="hide-sm">Settings</span></button>
+  </div>
+</header>
+
+<main id="app">
+
+  <!-- ============ FIRST RUN ============ -->
+  <section class="screen" id="screen-setup" hidden>
+    <div class="setup-card">
+      <h1>Welcome! 👋</h1>
+      <p class="lead">Something's broken at home? Tell Fix-It Assistant what's happening. It tells you what it probably is, <strong>whether it's safe to fix yourself</strong>, what you need, and the steps — in plain words. Everything stays on <strong>your</strong> computer.</p>
+      <h2>One quick question: should an AI help?</h2>
+      <p class="muted">The repair guide (47 common problems, safety advice, steps) works with <b>no AI at all</b>. An AI adds two things: it can <b>look at a photo</b>, and you can <b>ask follow-up questions</b> in your own words.</p>
+      <div class="choice-grid">
+        <button class="choice" data-choice="ollama"><div class="choice-emoji">💻</div><div class="choice-title">On my computer</div><div class="choice-desc">Free and private. Uses a program called <b>Ollama</b>. Photos need a small extra download.</div><div class="choice-status" id="ollamaStatus">Looking for Ollama…</div></button>
+        <button class="choice" data-choice="cloud"><div class="choice-emoji">☁️</div><div class="choice-title">Use a cloud AI key</div><div class="choice-desc">Best at photos and questions. Your description and photo are sent to that company.</div><div class="choice-status muted">You'll paste the key next</div></button>
+        <button class="choice" data-choice="offline"><div class="choice-emoji">🔒</div><div class="choice-title">No AI (guide only)</div><div class="choice-desc">The full repair guide, safety checks and steps. No photos, simple Q&amp;A.</div><div class="choice-status ok">Always works</div></button>
+      </div>
+      <p class="muted small">You can change this any time in ⚙️ Settings.</p>
+    </div>
+  </section>
+
+  <!-- ============ DESCRIBE ============ -->
+  <section class="screen" id="screen-input" hidden>
+    <div class="hero"><h1>What's wrong?</h1><p class="lead">Say what the thing is and what it's doing. Like you'd tell a friend.</p></div>
+    <div class="card input-card">
+      <textarea id="descText" rows="5" placeholder="Example: The toilet in the hall bathroom keeps running after I flush. I hear a hissing sound from the tank. It started a few days ago."></textarea>
+      <div class="row-gap space-between wrap">
+        <div class="examples">
+          <span class="muted small">Try an example:</span>
+          <button class="chip" data-example="My toilet keeps running after I flush and I hear hissing from the tank.">🚽 Running toilet</button>
+          <button class="chip" data-example="The dryer runs but the clothes are still damp after two cycles and the top of the dryer gets hot.">🧺 Dryer not drying</button>
+          <button class="chip" data-example="The outlet in the bathroom stopped working. Nothing I plug in there turns on, but the lights are fine.">🔌 Dead outlet</button>
+          <button class="chip" data-example="My car makes a fast clicking noise when I turn the key and the dashboard lights go dim.">🚗 Car won't start</button>
+        </div>
+        <span class="muted small" id="descCount"></span>
+      </div>
+
+      <div class="photo-row">
+        <div class="dropzone small" id="dropzone" tabindex="0" role="button">
+          <div class="drop-title">📷 Add a photo <span class="muted">(optional)</span> — drop it here or <span class="link">choose one</span></div>
+          <div class="drop-sub" id="photoHint">JPG or PNG. Works with an AI option turned on.</div>
+          <input type="file" id="photoInput" hidden accept="image/jpeg,image/png,image/webp">
+        </div>
+        <div class="photo-preview" id="photoPreview" hidden><img id="photoImg" alt="Your photo"><button class="btn small ghost" id="photoRemove">✕ Remove</button></div>
+      </div>
+
+      <div class="area-row">
+        <span class="muted small">Where is the problem? <span class="muted">(optional, helps a lot)</span></span>
+        <div class="area-chips" id="areaChips"></div>
+      </div>
+    </div>
+    <div class="center big-action">
+      <button class="btn primary huge" id="goBtn">Figure it out →</button>
+      <p class="muted small">Not sure how to describe it? <a href="#" id="browseLink">Browse all problems</a> instead.</p>
+    </div>
+    <div id="working" class="working" hidden><div class="spinner"></div><div id="workingText">Thinking…</div></div>
+  </section>
+
+  <!-- ============ RESULTS ============ -->
+  <section class="screen" id="screen-results" hidden>
+    <div class="results-head">
+      <button class="btn ghost" id="backBtn">← Check something else</button>
+      <div class="row-gap">
+        <label class="muted small">Status: <select id="rStatus"><option value="open">Still working on it</option><option value="fixed">Fixed it! 🎉</option><option value="called_pro">Called a pro</option><option value="gave_up">Living with it</option></select></label>
+      </div>
+    </div>
+
+    <!-- Emergency banner -->
+    <div id="flags" hidden></div>
+
+    <!-- Explanation + other matches -->
+    <div class="card" id="explainCard">
+      <div class="explain-top">
+        <div class="explain-text" id="explainText"></div>
+        <div class="photo-note muted small" id="photoNote" hidden></div>
+      </div>
+      <div class="other-matches" id="otherMatches" hidden></div>
+    </div>
+
+    <!-- No match -->
+    <div class="card" id="noMatch" hidden>
+      <h2>I couldn't match that to the guide</h2>
+      <p>Try adding <b>what the thing is</b> (toilet, dryer, outlet, door…) and <b>what it's doing</b> (leaking, humming, won't close…). Or pick from the list.</p>
+      <div class="row-gap"><button class="btn" id="noMatchBack">← Add more detail</button><button class="btn primary" id="noMatchBrowse">📖 Browse all problems</button></div>
+    </div>
+
+    <!-- The card -->
+    <div id="cardWrap" hidden>
+      <div class="safety-banner" id="safetyBanner">
+        <div class="safety-main"><span class="safety-emoji" id="safetyEmoji"></span><div><div class="safety-label" id="safetyLabel"></div><div class="safety-blurb" id="safetyBlurb"></div></div></div>
+        <ul class="safety-notes" id="safetyNotes"></ul>
+      </div>
+
+      <div class="card-title-row"><h1 id="cardTitle"></h1><span class="area-tag" id="cardArea"></span></div>
+      <div class="quick-facts" id="quickFacts"></div>
+
+      <div class="two-col results-grid">
+        <div class="col-main">
+          <div class="card" id="questionsCard" hidden>
+            <h2>🤔 A couple of quick questions</h2>
+            <p class="muted small">Answering these moves the most likely cause to the top. Skip any you don't know.</p>
+            <div id="questions"></div>
+          </div>
+
+          <div class="card">
+            <h2>🔍 What it probably is</h2>
+            <div id="causes"></div>
+          </div>
+
+          <div class="card">
+            <h2>🛠️ How to fix it</h2>
+            <ol class="steps" id="steps"></ol>
+            <div class="tip" id="tip"></div>
+          </div>
+
+          <div class="card stop-card" id="proCard">
+            <h2>🛑 Stop and call a professional if…</h2>
+            <ul id="callPro"></ul>
+          </div>
+        </div>
+
+        <div class="col-side">
+          <div class="card">
+            <h2>🧰 What you'll need</h2>
+            <h3>Tools</h3><ul class="checklist" id="tools"></ul>
+            <h3>Parts</h3><ul class="checklist" id="parts"></ul>
+            <div class="row-gap"><button class="btn small" id="copyList">📋 Copy shopping list</button></div>
+          </div>
+
+          <div class="card ask-card">
+            <h2>💬 Ask about this repair</h2>
+            <div class="chat" id="chat"></div>
+            <div class="ask-row"><input id="askText" placeholder="e.g. Which size flapper do I buy?"><button class="btn primary" id="askBtn">Ask</button></div>
+            <div class="muted small" id="askHint"></div>
+            <div id="askWorking" class="working-inline" hidden><div class="spinner small"></div><span>Thinking…</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ============ MODALS ============ -->
+<div class="modal-back" id="modalBack" hidden></div>
+
+<div class="modal" id="modal-notebook" hidden>
+  <div class="modal-head"><h2>📓 My repairs</h2><button class="x" data-close>✕</button></div>
+  <div class="modal-body"><p class="muted small">Every problem you've checked, saved only on this computer.</p><div id="notebookList"></div><div class="row-gap"><button class="btn primary" id="notebookNew">+ New check</button><button class="btn danger-ghost small" id="notebookDeleteAll">🗑️ Delete all</button></div></div>
+</div>
+
+<div class="modal wide" id="modal-browse" hidden>
+  <div class="modal-head"><h2>📖 Every problem in the guide</h2><button class="x" data-close>✕</button></div>
+  <div class="modal-body"><input id="browseFilter" placeholder="Type to filter… (toilet, dryer, squeak)"><div id="browseList"></div></div>
+</div>
+
+<div class="modal" id="modal-settings" hidden>
+  <div class="modal-head"><h2>⚙️ Settings</h2><button class="x" data-close>✕</button></div>
+  <div class="modal-body">
+    <h3>Should an AI help?</h3>
+    <div class="radio-list">
+      <label class="radio"><input type="radio" name="prov" value="ollama"><div><b>💻 On my computer (Ollama)</b><div class="muted small">Free, private. <span id="setOllamaInfo"></span></div></div></label>
+      <label class="radio"><input type="radio" name="prov" value="openai"><div><b>☁️ OpenAI (or compatible)</b><div class="muted small">Needs an API key. Sees photos.</div></div></label>
+      <label class="radio"><input type="radio" name="prov" value="gemini"><div><b>☁️ Google Gemini</b><div class="muted small">Needs a free Gemini API key. Sees photos.</div></div></label>
+      <label class="radio"><input type="radio" name="prov" value="offline"><div><b>🔒 No AI (guide only)</b><div class="muted small">The full guide, no photos, simple Q&amp;A. Instant.</div></div></label>
+    </div>
+    <div class="prov-panel" data-prov="ollama">
+      <div class="form-row"><label>Model for questions</label><select id="setOllamaModel"></select></div>
+      <div class="form-row"><label>Model for photos <span class="muted">(needs to be a "vision" model)</span></label><select id="setVisionModel"></select></div>
+      <div class="form-row"><label>Ollama address <span class="muted">(leave as is unless you know why)</span></label><input id="setOllamaHost" placeholder="http://127.0.0.1:11434"></div>
+      <div class="help-box" id="ollamaHelp" hidden><b>Don't have Ollama yet?</b> It's free. In a terminal run:<pre>curl -fsSL https://ollama.com/install.sh | sh
+ollama pull llama3.2:3b
+ollama pull moondream</pre>The second model (about 1.7 GB) is the one that can look at photos. Then click <b>Test</b> below.</div>
+      <div class="help-box" id="visionHelp" hidden>📷 To use photos, also run: <code>ollama pull moondream</code> (small, 1.7 GB). For better photo reading on a stronger computer: <code>ollama pull llama3.2-vision</code> (7 GB).</div>
+    </div>
+    <div class="prov-panel" data-prov="openai">
+      <div class="form-row"><label>API key</label><input id="setOpenaiKey" type="password" placeholder="sk-…" autocomplete="off"><button class="btn small ghost" data-clear-key="openai_api_key" type="button">Remove saved key</button></div>
+      <div class="form-row"><label>Model</label><input id="setOpenaiModel" placeholder="gpt-4o-mini"></div>
+      <div class="form-row"><label>Server address <span class="muted">(change only for Groq / LM Studio etc.)</span></label><input id="setOpenaiUrl" placeholder="https://api.openai.com/v1"></div>
+      <p class="muted small">Get a key at platform.openai.com → API keys. It starts with "sk-".</p>
+    </div>
+    <div class="prov-panel" data-prov="gemini">
+      <div class="form-row"><label>Gemini API key</label><input id="setGeminiKey" type="password" placeholder="AIza…" autocomplete="off"><button class="btn small ghost" data-clear-key="gemini_api_key" type="button">Remove saved key</button></div>
+      <div class="form-row"><label>Model</label><input id="setGeminiModel" placeholder="gemini-2.0-flash"></div>
+      <p class="muted small">Get a free key at aistudio.google.com → "Get API key".</p>
+    </div>
+    <div class="row-gap"><button class="btn" id="setTest">🔌 Test</button><span id="setTestOut" class="small"></span></div>
+    <p class="muted small" id="setEnvNote" hidden></p>
+    <h3>Privacy</h3>
+    <label class="check"><input type="checkbox" id="setSaveHistory"> Save the repairs I check (only on this computer)</label>
+    <p class="muted small" id="setDataInfo"></p>
+    <div class="modal-foot"><button class="btn primary big" id="setSave">Save settings</button></div>
+  </div>
+</div>
+
+<div class="modal" id="modal-help" hidden>
+  <div class="modal-head"><h2>❔ How to use Fix-It Assistant</h2><button class="x" data-close>✕</button></div>
+  <div class="modal-body help">
+    <ol>
+      <li><b>Describe the problem</b> — what the thing is and what it's doing. Add a photo if you have an AI option on. Click <b>Figure it out</b>.</li>
+      <li><b>Read the colored safety box first.</b> 🟢 means go ahead. 🟡 means follow the safety notes exactly. 🟠 means only the simple checks are for you. 🔴 means stop and get help.</li>
+      <li><b>Answer the quick questions</b> to move the most likely cause to the top.</li>
+      <li><b>Follow the steps</b> in order. The shopping list tells you what to have ready.</li>
+      <li><b>Ask</b> anything about this repair in the chat box. With an AI on, it answers in plain words; without one, it answers simple questions (tools, cost, time, safety).</li>
+    </ol>
+    <h3>Is it private?</h3>
+    <p>With "On my computer" or "No AI", nothing leaves your PC. With a cloud key, your description and photo are sent to that AI company when you click Figure it out or Ask.</p>
+    <h3>Is the advice safe?</h3>
+    <p>The guide was written to be cautious. The safety level and the "stop and call a pro" list never come from the AI — they're fixed. When in doubt, call someone. No repair is worth getting hurt.</p>
+    <h3>Something not working?</h3>
+    <p>In a terminal, run <code>python scripts/selfcheck.py</code>. The file <code>docs/TROUBLESHOOTING.md</code> lists every message with its fix.</p>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
